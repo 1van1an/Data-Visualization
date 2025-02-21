@@ -1,0 +1,174 @@
+---
+title: "Homework 2"
+author: "Lilit Ivanyan"
+date: "2025-02-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Part 3
+
+The “lung_cancer_prediction_dataset.csv” provides valuable insights into lung cancer cases, risk
+factors, smoking trends, and healthcare access across 25 of the world's most populated
+countries. It includes 220,632 individuals with details on their age, gender, smoking history,
+cancer diagnosis, environmental exposure, and survival rates. The dataset is useful for medical
+research, predictive modeling, and policymaking to understand lung cancer patterns globally.
+
+The “global_air_pollution_dataset.csv” provides information about the contamination of the
+indoor or outdoor environment by any chemical, physical or biological agent that modifies the
+natural characteristics of the atmosphere. It includes 23,463 rows with data presented in the
+following columns: Country, City, AQI Value, AQI Category, CO AQI Category, Ozone AQI Value,
+Ozone AQI Category, NO2 AQI Value, NO2 AQI Category, PM2.5 AQI Value, PM2.5 AQI Category.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+# Load the data
+lung_cancer_data <- read.csv('lung_cancer_prediction_dataset.csv')
+air_pollution_data <- read.csv('global_air_pollution_dataset.csv')
+```
+
+1. Create a Boxplot of Lung Cancer Deaths Distribution. 
+```{r}
+boxplot_lung_cancer <- ggplot(lung_cancer_data, aes(y = Annual_Lung_Cancer_Deaths)) +
+  geom_boxplot(fill = "lightblue", color = "blue") +
+  labs(title = 'Boxplot of Annual Lung Cancer Deaths Distribution', y = 'Number of Annual Deaths')
+
+print(boxplot_lung_cancer)
+```
+
+2. Create a Histogram of PM2.5 AQI Values. 
+```{r}
+
+histogram <- ggplot(air_pollution_data, aes(x = AQI_Value)) +
+  geom_histogram(bins = 30, fill="blue", alpha=0.7) +
+  labs(title = 'Distribution of AQI Values Across Cities', x = 'AQI Value', y = 'Frequency') +
+  theme_minimal()
+
+print(histogram)
+```
+
+3. Create a Density Plot of the Lung Cancer Mortality Rate. 
+```{r}
+mortality_rate <- ggplot(lung_cancer_data, aes(x = Mortality_Rate)) +
+  geom_density(fill="blue", alpha=0.5) +
+  labs(title = 'Density Plot of Lung Cancer Mortality Rate', x = 'Mortality Rate')
+
+print(mortality_rate)
+```
+
+4. Create a Scatter Plot by generating 100 random values from both the normal and logistic
+distributions. The points should be brown and use theme_solarized with argument light
+set to false.
+```{r}
+normal_values <- rnorm(100, mean = 0, sd = 1)
+
+logistic_values <- rlogis(100, location = 0, scale = 1)
+
+data <- data.frame(Normal = normal_values, Logistic = logistic_values)
+
+scatter_plot <- ggplot(data, aes(x = Normal, y = Logistic)) +
+  geom_point(color = "brown", size = 2.5) +
+  labs(title = "Scatter Plot of Normal vs. Logistic Random Values",
+       x = "Values from Normal Distribution",
+       y = "Values from Logistic Distribution") +
+  theme_minimal()
+
+print(scatter_plot)
+```
+
+### Part 4
+
+2. Use the gpplot2 package for this graph. (Hint: Aggregate the data then merge the two
+datasets. Use only the necessary columns.)
+
+```{r}
+pm25_by_country <- air_pollution_data %>%
+  group_by(Country) %>%
+  summarize(PM25_AQI_Value = mean(PM2.5_AQI_Value, na.rm = TRUE))
+
+lung_cancer_deaths <- lung_cancer_data %>%
+  group_by(Country) %>%
+  summarize(Annual_Lung_Cancer_Deaths = sum(Annual_Lung_Cancer_Deaths, na.rm = TRUE))
+
+merged_data <- inner_join(pm25_by_country, lung_cancer_deaths, by = "Country")
+
+top_countries <- merged_data %>%
+  arrange(desc(Annual_Lung_Cancer_Deaths)) %>%
+  slice(1:3)
+
+ggplot(merged_data, aes(x = PM25_AQI_Value, y = Annual_Lung_Cancer_Deaths, color = Country)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_text(data = top_countries, aes(label = Country), color = "black", vjust = 0.5, hjust = 0.5, size = 5, fontface = "bold") + 
+  labs(title = "PM2.5 AQI vs. Annual Lung Cancer Deaths",
+       x = "PM2.5 AQI Value",
+       y = "Annual Lung Cancer Deaths") +
+  theme_minimal() +
+  theme(plot.title = element_text(color = "darkred", size = 14, face = "bold"),
+        legend.position = "right")
+```
+
+3. Use the ggplot2 package for this graph. (Hint: use geom_jitter since y axis contains
+categorical data, also use the following colors: #5469f1 , #d554f1)
+```{r}
+# Remove the Stage with NA values and the values where Years of Smoking is 0
+lung_cancer_data <- lung_cancer_data %>%
+  select(Years_of_Smoking, Cancer_Stage, Gender) %>%
+  filter(
+    !is.na(Cancer_Stage) & Cancer_Stage %in% c("Stage 1", "Stage 2", "Stage 3", "Stage 4"),
+    Years_of_Smoking > 0
+  ) %>%
+  mutate(
+    Cancer_Stage = factor(Cancer_Stage, levels = c("Stage 1", "Stage 2", "Stage 3", "Stage 4"))
+  )
+
+ggplot(lung_cancer_data, aes(x = Years_of_Smoking, y = Cancer_Stage, color = Gender, shape = Gender)) +
+  geom_jitter(width = 0.3, alpha = 0.6) +
+  scale_color_manual(values = c("Female" = "#d554f1", "Male" = "#5469f1")) + 
+  scale_shape_manual(values = c("Female" = 17, "Male" = 16)) +
+  facet_wrap(~ Gender) +
+  labs(
+    title = "Lung Cancer Stage vs. Smoking Years",
+    subtitle = "Comparison by Gender",
+    x = "Years of Smoking",
+    y = "Cancer Stage",
+    color = "Gender",
+    shape = "Gender"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    legend.position = "bottom"
+  )
+```
+
+4. Use the ggplot2 package for this graph. (Hint: use scale_fill_viridis_d(option = "plasma"
+to get the same colors)
+```{r}
+selected_countries <- c("Brazil", "Germany", "India", "Italy", "Russian Federation", "United States of America")
+
+filtered_data <- air_pollution_data %>%
+  filter(Country %in% selected_countries)
+
+ggplot(filtered_data, aes(x = PM2.5_AQI_Value, fill = Country)) +
+  geom_histogram(binwidth = 10, color = "black") +
+  scale_fill_viridis_d(option = "plasma") +
+  facet_wrap(~ Country, scales = "free_y") +
+  labs(
+    title = "PM2.5 AQI Distribution Across Countries",
+    subtitle = "Comparison of Air Pollution Levels",
+    x = "PM2.5 AQI Value",
+    y = "Frequency",
+    fill = "Country"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    legend.position = "bottom"
+  )
+```
