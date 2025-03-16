@@ -1,0 +1,324 @@
+---
+title: "Homework 3"
+author: "Lilit Ivanyan"
+date: "2025-03-16"
+output: pdf_document
+---
+
+---
+title: "Homework 3"
+author: "Lilit Ivanyan"
+date: "2025-03-16"
+output: pdf_document
+---
+
+```{r error=FALSE warning=FALSE}
+library(ggplot2)
+library(dplyr)
+
+df <- read.csv("mobiles_dataset.csv")
+```
+
+## Part 1
+Hint: Convert all the currencies to dollars using the following logic:
+1 PKR = 0.0036 USD
+1 INR = 0.011 USD
+1 CNY = 0.14 USD
+1 AED = 0.27 USD
+
+```{r}
+df <- df %>%
+  rename(
+    Pakistan_Price = `Launched.Price.Pakistan.PKR`,
+    India_Price = `Launched.Price.India.INR`,
+    China_Price = `Launched.Price.China.CNY`,
+    USA_Price = `Launched.Price.USA.USD`,
+    Dubai_Price = `Launched.Price.Dubai.AED`
+  )
+
+currency_rates <- c(Pakistan = 0.0036, India = 0.011, China = 0.14, USA = 1.0, Dubai = 0.27)
+
+df <- df %>%
+  mutate(
+    Pakistan_Price_USD = Pakistan_Price * currency_rates["Pakistan"],
+    India_Price_USD = India_Price * currency_rates["India"],
+    China_Price_USD = China_Price * currency_rates["China"],
+    USA_Price_USD = USA_Price * currency_rates["USA"],
+    Dubai_Price_USD = Dubai_Price * currency_rates["Dubai"]
+  )
+```
+
+1. Does battery capacity influence the launched price of a smartphone? Check this variability
+across all currencies. Is there any type of difference between behaviors?
+
+```{r}
+correlations <- df %>%
+  summarize(
+    Correlation_Pakistan = cor(Battery.Capacity.mAh, Pakistan_Price_USD),
+    Correlation_India = cor(Battery.Capacity.mAh, India_Price_USD),
+    Correlation_China = cor(Battery.Capacity.mAh, China_Price_USD),
+    Correlation_USA = cor(Battery.Capacity.mAh, USA_Price_USD),
+    Correlation_Dubai = cor(Battery.Capacity.mAh, Dubai_Price_USD)
+  )
+
+print(correlations)
+```
+As the correlation is between the battery capacity and different currencies is small negative it means that the battery capacity does not influence the launched capacity significantly. For different currencies, there is minor differences between correlation, for example it is a bit smaller for Pakistan currency compared to other currencies and for the case of Indian currency it is the highest among all, but the difference is not that significant.
+
+2. Does RAM size impact the price of smartphones? Check this variability across all currencies.
+Is there any type of difference between behaviors?
+
+```{r error=FALSE warning=FALSE}
+df$RAM_numeric <- as.numeric(gsub("GB", "", df$RAM))
+correlations <- df %>%
+  summarize(
+    Correlation_Pakistan = cor(RAM_numeric, Pakistan_Price_USD, use = "complete.obs"),
+    Correlation_India = cor(RAM_numeric, India_Price_USD, use = "complete.obs"),
+    Correlation_China = cor(RAM_numeric, China_Price_USD, use = "complete.obs"),
+    Correlation_USA = cor(RAM_numeric, USA_Price_USD, use = "complete.obs"),
+    Correlation_Dubai = cor(RAM_numeric, Dubai_Price_USD, use = "complete.obs")
+  )
+
+print(correlations)
+```
+
+The correlation between the RAM and the price of the smartphones is high positive meaning that the size of the RAM impacts the price significantly. The higher the RAM, higher is the price of the smartphone. There is small difference between different currencies. For example, the highest correlation is with AED, meaning that the influence is higher with that currency when with others, but in general, the correlation is quite close between all of them. 
+
+3. Do Apple devices have a higher price variation across different regions compared to other
+brands? In which country do Apple devices have the highest markup? Are there brands with
+more stable pricing across regions?
+
+```{r}
+df <- df %>%
+  mutate(Average_Price_USD = rowMeans(select(., Pakistan_Price_USD, India_Price_USD, China_Price_USD, USA_Price_USD, Dubai_Price_USD), na.rm = TRUE))
+
+brand_price_variation <- df %>%
+  group_by(Company.Name) %>%
+  summarize(
+    Price_Range = max(Average_Price_USD, na.rm = TRUE) - min(Average_Price_USD, na.rm = TRUE),
+    Price_SD = sd(Average_Price_USD, na.rm = TRUE)
+  ) %>%
+  arrange(desc(Price_SD))
+
+print(brand_price_variation)
+```
+
+To check the price variation between different brands, we need to calculate the standard deviation of different brands. Higher the SD, higher price variations across different regions. From the table we can see that the highest price variation has Huawei smartphones and compared to all brands, Apple smartphones are on the 10th place with lower price variation.
+
+```{r}
+apple_prices <- df %>%
+  filter(Company.Name == "Apple") %>%
+  summarize(
+    Avg_Global_Price = mean(Average_Price_USD, na.rm = TRUE),
+    Pakistan_Markup = mean(Pakistan_Price_USD, na.rm = TRUE) / Avg_Global_Price,
+    India_Markup = mean(India_Price_USD, na.rm = TRUE) / Avg_Global_Price,
+    China_Markup = mean(China_Price_USD, na.rm = TRUE) / Avg_Global_Price,
+    USA_Markup = mean(USA_Price_USD, na.rm = TRUE) / Avg_Global_Price,
+    Dubai_Markup = mean(Dubai_Price_USD, na.rm = TRUE) / Avg_Global_Price
+  )
+
+max_markup_country <- names(which.max(apple_prices[2:6]))
+
+print(paste("Apple devices have the highest markup in:", max_markup_country))
+```
+
+The stabilility of the brand depends on the price variation. Lower the price variation, more stable the brand is. The brands which are the most stable are Poco, Nokia and iQOO.
+
+4. Do all smartphone brands have flagship and budget-friendly models, or do some brands
+only focus on premium devices?
+Hint: Categorize brands into budget, mid-range, and premium segments (Budget: < $300,
+Mid-range: $300 - $700, Premium: > $700). Check how many models each brand has in
+each segment. Determine whether a brand covers all three segments or focuses only on
+premium/mid-range.
+
+```{r error=FALSE}
+df <- df %>%
+  mutate(
+    Price_Category = case_when(
+      USA_Price_USD< 300 ~ "Budget",
+      USA_Price_USD >= 300 & USA_Price_USD <= 700 ~ "Mid-range",
+      USA_Price_USD > 700 ~ "Premium"
+    )
+  )
+
+brand_segments <- df %>%
+  group_by(Company.Name, Price_Category) %>%
+  summarize(Count = n())
+
+print(head(brand_segments))
+```
+From all the models, Apple is the only one that has almost only premium models. Other brands have mid-range and budget-friendly brands as well.
+
+5. Which region offers the most affordable smartphone prices on average? Are there any
+brands that price their phones significantly lower in one region compared to others?
+
+```{r}
+avg_prices_region <- df %>%
+  summarize(
+    Avg_Price_Pakistan = mean(Pakistan_Price_USD, na.rm = TRUE),
+    Avg_Price_India = mean(India_Price_USD, na.rm = TRUE),
+    Avg_Price_China = mean(China_Price_USD, na.rm = TRUE),
+    Avg_Price_USA = mean(USA_Price_USD, na.rm = TRUE),
+    Avg_Price_Dubai = mean(Dubai_Price_USD, na.rm = TRUE)
+  )
+
+cheapest_region <- names(which.min(avg_prices_region))
+
+print(avg_prices_region)
+```
+From the results, we can see that Pakistan is the region that offers the most affordable smartphone prices on average.
+
+```{r}
+brand_price_comparison <- df %>%
+  group_by(Company.Name) %>%
+  summarize(
+    Avg_Pakistan = mean(Pakistan_Price_USD, na.rm = TRUE),
+    Avg_India = mean(India_Price_USD, na.rm = TRUE),
+    Avg_China = mean(China_Price_USD, na.rm = TRUE),
+    Avg_USA = mean(USA_Price_USD, na.rm = TRUE),
+    Avg_Dubai = mean(Dubai_Price_USD, na.rm = TRUE)
+  )
+
+brand_discount_region <- brand_price_comparison %>%
+  mutate(Min_Region = apply(select(., -Company.Name), 1, function(x) names(x)[which.min(x)]))
+
+print(brand_discount_region)
+```
+As we can see from the results, for almost all the brands the region that has lower price compared to others is the Pakistan region. For almost all the brands the difference is quite significant.
+
+## Part 2
+1. Plot a bar chart for average price per region in USD.
+
+```{r error=FALSE warning=FALSE}
+avg_prices_region <- df %>%
+  summarize(
+    Region = c("Pakistan", "India", "China", "USA", "Dubai"),
+    Avg_Price = c(
+      mean(Pakistan_Price_USD, na.rm = TRUE),
+      mean(India_Price_USD, na.rm = TRUE),
+      mean(China_Price_USD, na.rm = TRUE),
+      mean(USA_Price_USD, na.rm = TRUE),
+      mean(Dubai_Price_USD, na.rm = TRUE)
+    )
+  )
+
+ggplot(avg_prices_region, aes(x = Region, y = Avg_Price, fill = Region)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  theme_minimal() +
+  labs(title = "Average Smartphone Price per Region (USD)",
+       x = "Region",
+       y = "Average Price (USD)")
+```
+2. Create a pie chart of the market share of smartphone brands.
+
+```{r}
+brand_market_share <- df %>%
+  group_by(Company.Name) %>%
+  summarize(Model_Count = n()) %>%
+  arrange(desc(Model_Count))
+
+ggplot(brand_market_share, aes(x = "", y = Model_Count, fill = Company.Name)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "Market Share of Smartphone Brands")
+```
+
+## Part 3
+
+1st Chart
+```{r}
+data <- read.csv("mobiles_dataset.csv")
+
+ggplot(data, aes(x = Company.Name, 
+                 y = Launched.Price.USA.USD, 
+                 fill = Company.Name)) +
+  geom_boxplot(outlier.shape = NA, alpha = 1) +  # Set alpha to 1 for solid colors
+  geom_jitter(width = 0.2, size = 1, alpha = 0.8, color = "black") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Price Distribution by Company in USA",
+       subtitle = "A boxplot showing how the price varies by company, with individual data points overlaid",
+       x = "Company",
+       y = "Price in USD") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(size = 11, face = "italic"))
+```
+
+2nd Chart
+
+```{r}
+ggplot(data, aes(x = Battery.Capacity.mAh, 
+                 y = Launched.Price.USA.USD, 
+                 color = Company.Name, 
+                 size = Screen.Size.inches)) +
+  geom_point(alpha = 1) +  # Set alpha to 1 for solid colors
+  scale_size_continuous(range = c(1, 5), guide = "none") +  # Keep sizes but remove from legend
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Battery Capacity vs. Price in USA",
+       subtitle = "The relationship between battery capacity, price, and screen size across different smartphone brands",
+       x = "Battery Capacity",
+       y = "Price",
+       color = "Brand") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold", size = 14),
+        plot.subtitle = element_text(size = 11, face = "italic"))
+```
+
+3rd Chart
+```{r}
+data <- read.csv("mobiles_dataset.csv")
+
+top_brands <- c("Apple", "Honor", "Oppo", "Samsung", "Vivo")
+data_filtered <- data %>% filter(Company.Name %in% top_brands)
+
+shapes <- c("Apple" = 16, "Honor" = 17, "Oppo" = 18, "Samsung" = 15, "Vivo" = 19)
+
+ggplot(data_filtered, aes(x = Battery.Capacity.mAh, 
+                          y = Launched.Price.USA.USD, 
+                          shape = Company.Name)) +
+  geom_point(aes(color = Screen.Size.inches), size = 4, alpha = 0.7) +
+  scale_shape_manual(values = shapes) +
+  scale_color_gradient(low = "darkblue", high = "lightblue", guide = "none") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Battery Capacity vs. Price for Top 5 Brands",
+       subtitle = "Different Shapes for Each Brand, Color by Screen Size, (USA)",
+       x = "Battery Capacity (mAh)",
+       y = "Price (USD)",
+       shape = "Brand") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold", size = 16),
+        plot.subtitle = element_text(size = 12, face = "italic"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+```
+
+## Part 4
+
+```{r warning=FALSE}
+data <- read.csv("mobiles_dataset.csv")
+
+data$RAM <- as.numeric(gsub("GB", "", data$RAM))
+data$Front.Camera <- as.numeric(gsub("MP", "", data$Front.Camera))
+data$Back.Camera <- as.numeric(gsub("MP", "", data$Back.Camera))
+data$Mobile.Weight <- as.numeric(gsub("g", "", data$Mobile.Weight))
+
+data <- na.omit(data)
+
+numeric_data <- data %>% select(RAM, Front.Camera, Back.Camera, Mobile.Weight, 
+                                Battery.Capacity.mAh, Screen.Size.inches, 
+                                Launched.Price.USA.USD)
+
+cor_matrix <- cor(numeric_data)
+print(cor_matrix)
+```
+The analysis shows that RAM is the strongest predictor of mobile phone prices, with a high correlation (0.64), indicating that devices with more RAM tend to be more expensive. Camera specifications also have a moderate impact, with correlations of 0.27 (front camera) and 0.25 (back camera), showing that while better cameras contribute to higher prices, they are not the primary determinant. Interestingly, battery capacity and screen size have little to no influence on price, indicating that brands do not significantly charge more for bigger batteries or larger displays. Additionally, mobile weight is strongly correlated with battery size (0.86) and screen size (0.97) but does not directly impact pricing.
+
+To conclude, RAM and brand perception are the most significant factors influencing price, while battery capacity, screen size, and weight have minimal impact.
